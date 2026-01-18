@@ -123,11 +123,12 @@ class CodeAssistantAgent:
     which are executed and inlined into the final response.
     """
 
-    def __init__(self, llm=BASE_LLM):
+    def __init__(self, llm=BASE_LLM, memory: Memory = None):
         self.llm = llm
+        self.memory = memory
         
         prompt = PromptTemplate(
-            input_variables=["query", "execution_plan", "tools"],
+            input_variables=["query", "execution_plan", "history", "tools"],
             template=CODE_ASSISTANT_PROMPT
         )
         self.chain = prompt | self.llm | StrOutputParser()
@@ -136,9 +137,18 @@ class CodeAssistantAgent:
         execution_plan = state.get("execution_plan", "")
         tools = get_available_tools()
         
+        history_str = ""
+        if self.memory:
+            history = self.memory.get_history(n=3) or []
+            history_str = "\n".join([
+                f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}"
+                for msg in history
+            ])
+        
         result = self.chain.invoke({
             "query": state["query"],
             "execution_plan": execution_plan,
+            "history": history_str,
             "tools": tools
         })
 
@@ -164,19 +174,26 @@ class StudyAssistantAgent:
         self.memory = memory
 
         prompt = PromptTemplate(
-            input_variables=["query", "memory", "tools"],
+            input_variables=["query", "memory", "history", "tools"],
             template=(STUDY_ASSISTANT_PROMPT)
         )
 
         self.chain = prompt | self.llm | StrOutputParser()
 
     def run(self, state: State) -> State:
-        # profile_info = []
+        profile_info = []
+        history_str = ""
+        
         if self.memory:
             profile_info = self.memory.get_from_profile(state["query"]) or []
+            history = self.memory.get_history(n=3) or []
+            history_str = "\n".join([
+                f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}"
+                for msg in history
+            ])
 
         memory_str = "\n".join([
-            f"{n.get('title','')}: {n.get('content','')}" for content in profile_info
+            f"{n.get('title','')}: {n.get('content','')}" for n in profile_info
         ])
 
         tools = get_available_tools()
@@ -184,6 +201,7 @@ class StudyAssistantAgent:
         result = self.chain.invoke({
             "query": state["query"],
             "memory": memory_str,
+            "history": history_str,
             "tools": tools
         })
 
@@ -191,7 +209,7 @@ class StudyAssistantAgent:
 
         state["agent_log"]["study_assistant"] = processed
         state["agent_log"]["study_assistant_tools"] = executed
-        state["memory"] = profile_info
+
 
         return state
 
@@ -203,12 +221,13 @@ class PlannerAgent:
 
     Uses PLANNER_PROMPT and optional memory context about upcoming events or constraints.
     """
-    def __init__(self, llm=BASE_LLM, profile_notes=None):
+    def __init__(self, llm=BASE_LLM, profile_notes=None, memory: Memory = None):
         self.llm = llm
         self.profile_notes = profile_notes
+        self.memory = memory
 
         prompt = PromptTemplate(
-            input_variables=["query", "tools"],
+            input_variables=["query", "history", "tools"],
             partial_variables={"profile_notes": str(self.profile_notes)},
             template=PLANNER_PROMPT
         )
@@ -218,8 +237,17 @@ class PlannerAgent:
     def run(self, state: State) -> State:
         tools = get_available_tools()
         
+        history_str = ""
+        if self.memory:
+            history = self.memory.get_history(n=3) or []
+            history_str = "\n".join([
+                f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}"
+                for msg in history
+            ])
+        
         result = self.chain.invoke({
             "query": state["query"],
+            "history": history_str,
             "tools": tools
         })
 

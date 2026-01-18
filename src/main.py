@@ -30,6 +30,7 @@ def choose_agent(state: State) -> str:
         return "decompozer"
     if cat == "planning":
         return "planning"
+    return "other"
 
 
 # === NODES ===
@@ -46,7 +47,8 @@ def decompozer_node(state: State) -> State:
 
 
 def code_assistant_node(state: State) -> State:
-    code_assistant = CodeAssistantAgent()
+    memory = state["memory"]
+    code_assistant = CodeAssistantAgent(memory=memory)
     result = code_assistant.run(state)
     result["final_answer"] = result["agent_log"]["code_assistant"]
 
@@ -64,10 +66,21 @@ def study_assistant_node(state: State) -> State:
 
 
 def planner_node(state: State) -> State:
+    memory = state["memory"]
     profile_notes = state["profile_notes"]
-    planner = PlannerAgent(profile_notes=profile_notes)
+    planner = PlannerAgent(profile_notes=profile_notes, memory=memory)
     result = planner.run(state)
     result["final_answer"] = result["agent_log"]["planner"]
+
+    return result
+
+
+def reserve_node(state: State) -> State:
+    memory = state["memory"]
+    reserve_agent = StudyAssistantAgent(memory=memory)
+
+    result = reserve_agent.run(state)
+    result["final_answer"] = result["agent_log"]["study_assistant"]
 
     return result
 
@@ -80,6 +93,7 @@ def build_graph():
     workflow.add_node("code_assistant", code_assistant_node)
     workflow.add_node("study_assistant", study_assistant_node)
     workflow.add_node("planner", planner_node)
+    workflow.add_node("other", reserve_node)
 
     workflow.set_entry_point("router")
 
@@ -89,7 +103,8 @@ def build_graph():
         {
             "academic": "study_assistant",
             "decompozer": "decompozer",
-            "planning": "planner"
+            "planning": "planner",
+            "other": "other"
         }
     )
 
@@ -98,6 +113,7 @@ def build_graph():
     workflow.add_edge("study_assistant", END)
     workflow.add_edge("code_assistant", END)
     workflow.add_edge("planner", END)
+    workflow.add_edge("other", END)
 
     return workflow.compile()  
     
@@ -106,7 +122,7 @@ def run(query: str, memory_path: str = "src/memory.json"):
     memory = Memory(memory_path)
     profile_notes = memory.get_from_profile("event")
 
-    state: GraphState = {
+    state: State = {
         "query": query,
         "category": None,
         "memory": memory,

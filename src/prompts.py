@@ -41,6 +41,9 @@ Use the following context when available:
 Plan:
 {execution_plan}
 
+Previous conversation history:
+{history}
+
 Available tools:
 {tools}
 
@@ -65,6 +68,9 @@ Use the following context when available:
 Relevant notes from profile:
 {memory}
 
+Previous conversation history:
+{history}
+
 Available tools:
 {tools}
 
@@ -82,6 +88,9 @@ You are the planner agent, a productivity and time-management assistant who help
 Use the following context when available:
 Upcoming events and constraints:
 {profile_notes}
+
+Previous conversation history:
+{history}
 
 Available tools:
 {tools}

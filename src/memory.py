@@ -19,7 +19,7 @@ class Memory:
 
     def get_history(self, n: int = 3):
         mem_file = self._read()
-        return mem_file["history"][-n:]
+        return mem_file["msg_history"][-n:]
 
 
     def update_history(self, user: str, assistant: str):
